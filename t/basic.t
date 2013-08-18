@@ -7,18 +7,15 @@ use Shell::Command;
 my &next_is = -> { fail };
 
 sub spew (:$name, *%other) {
-	say "Spewing $name";
 	next_is($name);
 	spurt($name, $name) or die "$!";
 }
 
 sub poke {
-	say "poking";
 	next_is('poke');
 }
 
 sub noop(:$name, *%other) {
-	say "nooping $name";
 	next_is($name);
 }
 
@@ -27,7 +24,7 @@ my $dirname = '_testing';
 END { rm_rf($dirname) if $dirname.IO.e }
 
 my $source1_filename = '_testing/source1';
-$graph.add_file($source1_filename, :action( -> :$name, *%other { say "Running $name"; poke(), spew(:$name) }));
+$graph.add_file($source1_filename, :action( -> :$name, *%other { poke(), spew(:$name) }));
 
 my $source2_filename = '_testing/source2';
 $graph.add_file($source2_filename, :action(&spew), :dependencies([$source1_filename]));
