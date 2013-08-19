@@ -6,61 +6,58 @@ class Build::Simple {
 
 	has %!nodes = {};
 	
-	method add_file(Str $name, *%args) {
+	method add_file(Str $name, :@dependencies, *%args) {
 		die "Already exists" if %!nodes{$name} :exists;
-		my $node = Build::Simple::Node.new(|%args, :phony(0));
+		@dependencies.=map(-> $dep { %!nodes{$dep} });
+		my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :phony(0));
 		%!nodes{$name} = $node;
 		return;
 	}
 
-	method add_phony(Str $name, *%args) {
+	method add_phony(Str $name, :@dependencies, *%args) {
 		die "Already exists" if %!nodes{$name} :exists;
-		my $node = Build::Simple::Node.new(|%args, :phony(1));
+		@dependencies.=map(-> $dep { %!nodes{$dep} });
+		my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :phony(1));
 		%!nodes{$name} = $node;
 		return;
 	}
 
-	my method node_sorter($current, &callback, $seen is rw, %loop is copy) {
-		die "Looping" if %loop{$current} :exists;
-		return if $seen{$current}++;
-		my $node = %!nodes{$current};
-		%loop{$current} = 1;
+	my method node_sorter($node, &callback, $seen is rw, %loop is copy) {
+		die "Looping" if %loop{$node} :exists;
+		return if $seen{$node}++;
+		%loop{$node} = 1;
 		self.node_sorter($_, &callback, $seen, %loop) for $node.dependencies;
-		callback($current, $node);
+		callback($node);
 		return
 	}
 
-	method _sort_nodes($node) {
+	method _sort_nodes($name) {
 		my @ret;
-		self.node_sorter($node, -> $name, $node { push @ret, $name }, {}, {});
+		self.node_sorter(%!nodes{$name}, -> $node { push @ret, $node.name }, {}, {});
 		return @ret;
 	}
 
-	method _is_phony($name) {
-		my $node = %!nodes{$name};
-		return $node ?? $node.phony !! 0;
-	}
-
 	method run($name, *%args) {
-		self.node_sorter($name, -> $name, $node { $node.run($name, self, |%args) }, {}, {});
+		self.node_sorter(%!nodes{$name}, -> $node { $node.run(|%args) }, {}, {});
 		return;
 	}
 }
 
 class Build::Simple::Node {
+	has $.name;
 	has $.phony;
 	has $.skip_mkdir = ?$!phony;
 	has @.dependencies;
 	has &.action = sub {};
 
-	method run ($name, $graph, *%options) {
-		if (!$.phony and $name.IO.e) {
-			my @files = sort grep { !$graph._is_phony($_) }, self.dependencies();
-			my $age = $name.IO.modified;
-			return unless .IO.d or .IO.modified > $age for any(@files);
+	method run (*%options) {
+		if (!$.phony and $.name.IO.e) {
+			my @files = sort grep { !.defined || !.phony() }, self.dependencies();
+			my $age = $.name.IO.modified;
+			return unless .d or .modified > $age for any(@files.map(*.name.IO));
 		}
-		my $parent = $name.path.parent;
+		my $parent = $.name.path.parent;
 		mkdir($parent) if not $parent.IO.e;
-		self.action.(:$name, :dependencies(self.dependencies), |%options);
+		$.action.(:$.name, :$.dependencies, |%options);
 	}
 }
