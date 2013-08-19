@@ -57,7 +57,7 @@ class Build::Simple::Node {
 			return unless .d or .modified > $age for any(@files.map(*.name.IO));
 		}
 		my $parent = $.name.path.parent;
-		mkdir($parent) if not $parent.IO.e;
+		mkdir($parent) if not $.skip_mkdir and not $parent.IO.e;
 		$.action.(:$.name, :$.dependencies, |%options);
 	}
 }
