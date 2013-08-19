@@ -9,7 +9,7 @@ class Build::Simple {
 	method add_file(Str $name, :@dependencies, *%args) {
 		die "Already exists" if %!nodes{$name} :exists;
 		@dependencies.=map(-> $dep { %!nodes{$dep} });
-		my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :phony(0));
+		my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :!phony);
 		%!nodes{$name} = $node;
 		return;
 	}
@@ -17,7 +17,7 @@ class Build::Simple {
 	method add_phony(Str $name, :@dependencies, *%args) {
 		die "Already exists" if %!nodes{$name} :exists;
 		@dependencies.=map(-> $dep { %!nodes{$dep} });
-		my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :phony(1));
+		my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :phony);
 		%!nodes{$name} = $node;
 		return;
 	}
@@ -38,8 +38,7 @@ class Build::Simple {
 	}
 
 	method run($name, *%args) {
-		self.node_sorter(%!nodes{$name}, -> $node { $node.run(|%args) }, {}, {});
-		return;
+		return self.node_sorter(%!nodes{$name}, -> $node { $node.run(|%args) }, {}, {});
 	}
 }
 

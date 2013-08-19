@@ -33,8 +33,8 @@ $graph.add_phony('build',   :action(&noop), :dependencies([ $source1_filename, $
 $graph.add_phony('test',    :action(&noop), :dependencies([ 'build' ]));
 $graph.add_phony('install', :action(&noop), :dependencies([ 'build' ]));
 
-$graph.add_phony('loop1', dependencies => ['loop2']);
-$graph.add_phony('loop2', dependencies => ['loop1']);
+$graph.add_phony('loop1', :dependencies(['loop2']));
+$graph.add_phony('loop2', :dependencies(['loop1']));
 
 
 
@@ -52,7 +52,7 @@ my %expected = (
 		[qw{poke _testing/source1 _testing/source2 build}],
 		[qw/build/],
 
-		sub { rm_f($source2_filename) or die "Couldn't remove $source2_filename: $*ERRNO" },
+		sub { rm_f($source2_filename) or warn "Couldn't remove $source2_filename: $!" },
 		[qw{_testing/source2 build}],
 		[qw/build/],
 
@@ -70,9 +70,8 @@ my %expected = (
 	],
 );
 
-for (%expected.kv) -> $runner, @expected {
+for (%expected.kv) -> $run, @expected {
 	rm_rf($dirname);
-	my $run = $runner;
 	my $count = 1;
 	for (@expected) -> $expected {
 		if ($expected ~~ Callable) {
@@ -81,7 +80,7 @@ for (%expected.kv) -> $runner, @expected {
 		else {
 			my @got;
 			temp &next_is = -> $name { push @got, $name };
-			$graph.run($run, verbosity => 1);
+			$graph.run($run, :verbosity);
 			is_deeply(@got, $expected, "@got is {$expected.perl} in run $run-$count");
 			$count++;
 		}
