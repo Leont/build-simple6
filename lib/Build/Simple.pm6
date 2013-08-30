@@ -22,26 +22,26 @@ class Build::Simple {
 		return;
 	}
 
-	my method node_sorter($node, $seen is rw, %loop is copy) {
+	my method node_sorter($node, %seen is rw, %loop is copy) {
 		die "Looping" if %loop{$node} :exists;
-		return if $seen{$node}++;
+		return if %seen{$node}++;
 		%loop{$node} = 1;
-		self.node_sorter($_, $seen, %loop) for $node.dependencies;
+		self.node_sorter($_, %seen, %loop) for $node.dependencies;
 		take $node;
 		return
 	}
 
 	my method nodes_for($name) {
-		return gather { self.node_sorter(%!nodes{$name}, {}, {}) };
+		return gather { $.node_sorter(%!nodes{$name}, {}, {}) };
 	}
 
 	method _sort_nodes($name) {
-		self.nodes_for($name) ==> map -> $node { $node.name };
+		@.nodes_for($name) ==> map -> $node { $node.name };
 	}
 
 	method run($name, *%args) {
-		for self.nodes_for($name) -> $node {
-			$node.run(|%args)
+		for @.nodes_for($name) -> $node {
+			$node.run(%args)
 		}
 		return;
 	}
@@ -54,14 +54,14 @@ class Build::Simple::Node {
 	has @.dependencies;
 	has &.action = sub {};
 
-	method run (*%options) {
+	method run (%options) {
 		if (!$.phony and $.name.IO.e) {
-			my @files = sort grep { !.defined || !.phony() }, self.dependencies();
+			my @files = sort grep { !.defined || !.phony() }, @.dependencies;
 			my $age = $.name.IO.modified;
 			return unless .d or .modified > $age for any(@files.map(*.name.IO));
 		}
 		my $parent = $.name.path.parent;
 		mkdir($parent) if not $.skip_mkdir and not $parent.IO.e;
-		$.action.(:$.name, :$.dependencies, |%options);
+		$.action.(:$.name, :@.dependencies, |%options);
 	}
 }
