@@ -8,7 +8,11 @@ my &next_is = -> { fail };
 
 sub spew (:$name, *%other) {
 	next_is($name);
-	spurt($name, $name) or die "$!";
+	my $dirname = $name.path.directory;
+	mkdir $dirname if not $dirname.IO.d;
+	my $fh = open $name, :w;
+	$fh.print($name);
+	$fh.close;
 }
 
 sub poke {
@@ -36,8 +40,6 @@ $graph.add_phony('install', :action(&noop), :dependencies([ 'build' ]));
 $graph.add_phony('loop1', :dependencies(['loop2']));
 $graph.add_phony('loop2', :dependencies(['loop1']));
 
-
-
 my @sorted = $graph._sort_nodes('build');
 
 is_deeply(@sorted, [ $source1_filename, $source2_filename, 'build' ], 'topological sort is ok');
@@ -52,11 +54,11 @@ my %expected = (
 		[qw{poke _testing/source1 _testing/source2 build}],
 		[qw/build/],
 
-		sub { rm_f($source2_filename) or warn "Couldn't remove $source2_filename: $!" },
+		sub { unlink $source2_filename or warn "Couldn't remove $source2_filename: $!" },
 		[qw{_testing/source2 build}],
 		[qw/build/],
 
-		sub { rm_f($source1_filename); sleep(1) },
+		sub { unlink $source1_filename; sleep(1) },
 		[qw{poke _testing/source1 _testing/source2 build}],
 		[qw/build/],
 	],
@@ -71,7 +73,7 @@ my %expected = (
 );
 
 for (%expected.kv) -> $run, @expected {
-	rm_rf($dirname);
+	rm_rf($dirname) if $dirname.IO.e;
 	my $count = 1;
 	for (@expected) -> $expected {
 		if ($expected ~~ Callable) {

@@ -4,7 +4,7 @@ use fatal;
 
 class Build::Simple {
 
-	has %!nodes = {};
+	has %!nodes;
 	
 	method add_file(Str $name, :@dependencies, *%args) {
 		die "Already exists" if %!nodes{$name} :exists;
@@ -22,25 +22,25 @@ class Build::Simple {
 		return;
 	}
 
-	my method node_sorter($node, %seen is rw, %loop is copy) {
+	method !node_sorter($node, %seen is rw, %loop is copy) {
 		die "Looping" if %loop{$node} :exists;
 		return if %seen{$node}++;
 		%loop{$node} = 1;
-		self.node_sorter($_, %seen, %loop) for $node.dependencies;
+		self!node_sorter($_, %seen, %loop) for $node.dependencies;
 		take $node;
 		return
 	}
 
-	my method nodes_for($name) {
-		return gather { $.node_sorter(%!nodes{$name}, {}, {}) };
+	method !nodes_for($name) {
+		return gather { self!node_sorter(%!nodes{$name}, {}, {}) };
 	}
 
 	method _sort_nodes($name) {
-		@.nodes_for($name) ==> map -> $node { $node.name };
+		self!nodes_for($name) ==> map -> $node { $node.name };
 	}
 
 	method run($name, *%args) {
-		for @.nodes_for($name) -> $node {
+		for self!nodes_for($name) -> $node {
 			$node.run(%args)
 		}
 		return;
