@@ -28,19 +28,19 @@ my $dirname = '_testing';
 END { rm_rf($dirname) if $dirname.IO.e }
 
 my $source1_filename = '_testing/source1';
-$graph.add_file($source1_filename, :action( -> :$name, *%other { poke(), spew(:$name) }));
+$graph.add-file($source1_filename, :action( -> :$name, *%other { poke(), spew(:$name) }));
 
 my $source2_filename = '_testing/source2';
-$graph.add_file($source2_filename, :action(&spew), :dependencies([$source1_filename]));
+$graph.add-file($source2_filename, :action(&spew), :dependencies([$source1_filename]));
 
-$graph.add_phony('build',   :action(&noop), :dependencies([ $source1_filename, $source2_filename ]));
-$graph.add_phony('test',    :action(&noop), :dependencies([ 'build' ]));
-$graph.add_phony('install', :action(&noop), :dependencies([ 'build' ]));
+$graph.add-phony('build',   :action(&noop), :dependencies([ $source1_filename, $source2_filename ]));
+$graph.add-phony('test',    :action(&noop), :dependencies([ 'build' ]));
+$graph.add-phony('install', :action(&noop), :dependencies([ 'build' ]));
 
-$graph.add_phony('loop1', :dependencies(['loop2']));
-$graph.add_phony('loop2', :dependencies(['loop1']));
+$graph.add-phony('loop1', :dependencies(['loop2']));
+$graph.add-phony('loop2', :dependencies(['loop1']));
 
-my @sorted = $graph._sort_nodes('build');
+my @sorted = $graph._sort-nodes('build');
 
 is_deeply(@sorted, [ $source1_filename, $source2_filename, 'build' ], 'topological sort is ok');
 
