@@ -4,23 +4,21 @@ use Test;
 use Build::Simple;
 use Shell::Command;
 
-my &next_is = -> { fail };
+my &next-is = -> { fail };
 
-sub spew (:$name, *%other) {
-	next_is($name);
-	my $dirname = $name.path.directory;
+sub dump(:$name, *%other) {
+	next-is($name);
+	my $dirname = $name.IO.dirname;
 	mkdir $dirname if not $dirname.IO.d;
-	my $fh = open $name, :w;
-	$fh.print($name);
-	$fh.close;
+	spurt $name, $name;
 }
 
-sub poke {
-	next_is('poke');
+sub poke(*%) {
+	next-is('poke');
 }
 
 sub noop(:$name, *%other) {
-	next_is($name);
+	next-is($name);
 }
 
 my $graph = Build::Simple.new;
@@ -28,10 +26,10 @@ my $dirname = '_testing';
 END { rm_rf($dirname) if $dirname.IO.e }
 
 my $source1_filename = '_testing/source1';
-$graph.add-file($source1_filename, :action( -> :$name, *%other { poke(), spew(:$name) }));
+$graph.add-file($source1_filename, :action( -> :$name, *%other { poke(), dump(:$name) }));
 
 my $source2_filename = '_testing/source2';
-$graph.add-file($source2_filename, :action(&spew), :dependencies([$source1_filename]));
+$graph.add-file($source2_filename, :action(&dump), :dependencies([$source1_filename]));
 
 $graph.add-phony('build',   :action(&noop), :dependencies([ $source1_filename, $source2_filename ]));
 $graph.add-phony('test',    :action(&noop), :dependencies([ 'build' ]));
@@ -42,7 +40,7 @@ $graph.add-phony('loop2', :dependencies(['loop1']));
 
 my @sorted = $graph._sort-nodes('build');
 
-is_deeply(@sorted, [ $source1_filename, $source2_filename, 'build' ], 'topological sort is ok');
+is-deeply(@sorted, [ $source1_filename, $source2_filename, 'build' ], 'topological sort is ok');
 
 my @runs     = qw/build test install/;
 my %expected = (
@@ -74,16 +72,17 @@ my %expected = (
 
 for (%expected.kv) -> $run, @expected {
 	rm_rf($dirname) if $dirname.IO.e;
+	mkdir $dirname;
 	my $count = 1;
-	for (@expected) -> $expected {
-		if ($expected ~~ Callable) {
+	for @expected -> $expected {
+		if $expected ~~ Callable {
 			$expected();
 		}
 		else {
 			my @got;
-			temp &next_is = -> $name { push @got, $name };
+			temp &next-is = -> $name { push @got, $name };
 			$graph.run($run, :verbosity);
-			is_deeply(@got, $expected, "@got is {$expected.perl} in run $run-$count");
+			is-deeply(@got, $expected, "@got is {$expected.perl} in run $run-$count");
 			$count++;
 		}
 	}

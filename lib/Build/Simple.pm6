@@ -3,12 +3,11 @@ class Build::Simple::Node { ... }
 use fatal;
 
 class Build::Simple {
-
 	has %!nodes;
 	
 	method add-file(Str $name, :@dependencies, *%args) {
 		die "Already exists" if %!nodes{$name} :exists;
-		@dependencies.=map(-> $dep { %!nodes{$dep} });
+		@dependencies.=map: { %!nodes{$^dep} };
 		my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :!phony);
 		%!nodes{$name} = $node;
 		return;
@@ -16,26 +15,27 @@ class Build::Simple {
 
 	method add-phony(Str $name, :@dependencies, *%args) {
 		die "Already exists" if %!nodes{$name} :exists;
-		@dependencies.=map(-> $dep { %!nodes{$dep} });
+		@dependencies.=map: { %!nodes{$^dep} };
 		my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :phony);
 		%!nodes{$name} = $node;
 		return;
 	}
 
 	method !nodes-for($name) {
-		sub node-sorter($node, %seen is rw, %loop is copy) {
+		my %seen;
+		sub node-sorter($node, %loop is copy) {
 			die "Looping" if %loop{$node} :exists;
 			return if %seen{$node}++;
 			%loop{$node} = 1;
-			node-sorter($_, %seen, %loop) for $node.dependencies;
+			node-sorter($_, %loop) for $node.dependencies;
 			take $node;
 			return
 		}
-		return gather { node-sorter(%!nodes{$name}, {}, {}) };
+		return gather { node-sorter(%!nodes{$name}, {}) };
 	}
 
 	method _sort-nodes($name) {
-		self!nodes-for($name) ==> map(*.name);
+		self!nodes-for($name).map(*.name);
 	}
 
 	method run($name, *%args) {
@@ -54,12 +54,12 @@ class Build::Simple::Node {
 	has &.action = sub {};
 
 	method run (%options) {
-		if (!$.phony and $.name.IO.e) {
-			my @files = sort grep { !.defined || !.phony() }, @.dependencies;
+		if !$.phony and $.name.IO.e {
+			my @files = @.dependencies.grep({ !.defined || !.phony() }).map(*.name.IO);
 			my $age = $.name.IO.modified;
-			return unless .d or .modified > $age for any(@files.map(*.name.IO));
+			return unless @files.grep({ $^entry.modified > $age && !$^entry.d });
 		}
-		my $parent = $.name.path.parent;
+		my $parent = $.name.IO.parent;
 		mkdir($parent) if not $.skip-mkdir and not $parent.IO.e;
 		$.action.(:$.name, :@.dependencies, |%options);
 	}
