@@ -1,21 +1,21 @@
 unit class Build::Simple;
 use fatal;
 class Node { ... }
-has Node %!nodes;
+has Node:D %!nodes;
 
-method add-file(Str $name, :@dependencies, *%args) {
+method add-file(Str $name, :dependencies(@dependency-names), *%args) {
 	die "Already exists" if %!nodes{$name} :exists;
-	@dependencies.=map: { %!nodes{$^dep} };
-	my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :!phony);
-	%!nodes{$name} = $node;
+	die "Missing dependencies" unless %!nodes{all(@dependency-names)} :exists;
+	my Node:D @dependencies = @dependency-names.map: { %!nodes{$^dep} };
+	%!nodes{$name} = Build::Simple::Node.new(|%args, :$name, :@dependencies, :!phony);
 	return;
 }
 
-method add-phony(Str $name, :@dependencies, *%args) {
+method add-phony(Str $name, :dependencies(@dependency-names), *%args) {
 	die "Already exists" if %!nodes{$name} :exists;
-	@dependencies.=map: { %!nodes{$^dep} };
-	my $node = Build::Simple::Node.new(|%args, :$name, :@dependencies, :phony);
-	%!nodes{$name} = $node;
+	die "Missing dependencies" unless %!nodes{all(@dependency-names)} :exists;
+	my Node:D @dependencies = @dependency-names.map: { %!nodes{$^dep} };
+	%!nodes{$name} = Build::Simple::Node.new(|%args, :$name, :@dependencies, :phony);
 	return;
 }
 
@@ -44,20 +44,20 @@ method run(Str $name, *%args) {
 }
 
 my class Node {
-	has $.name;
-	has $.phony;
-	has $.skip-mkdir = ?$!phony;
-	has @.dependencies;
+	has Str:D $.name is required;
+	has Bool:D $.phony = False;
+	has Bool:D $.skip-mkdir = ?$!phony;
+	has Node:D @.dependencies;
 	has &.action = sub {};
 
 	method run (%options) {
-		if !$.phony and $.name.IO.e {
-			my @files = @.dependencies.grep({ !.defined || !.phony() }).map(*.name.IO);
-			my $age = $.name.IO.modified;
+		if !$!phony and $!name.IO.e {
+			my @files = @!dependencies.grep({ !.defined || !.phony() }).map(*.name.IO);
+			my $age = $!name.IO.modified;
 			return unless @files.grep({ $^entry.modified > $age && !$^entry.d });
 		}
-		my $parent = $.name.IO.parent;
-		mkdir($parent) if not $.skip-mkdir and not $parent.IO.e;
-		$.action.(:$.name, :@.dependencies, |%options);
+		my $parent = $!name.IO.parent;
+		mkdir($parent) if not $!skip-mkdir and not $parent.IO.e;
+		&!action.(:$!name, :@!dependencies, |%options);
 	}
 }

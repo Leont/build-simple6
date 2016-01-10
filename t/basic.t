@@ -35,9 +35,6 @@ $graph.add-phony('build',   :action(&noop), :dependencies([ $source1_filename, $
 $graph.add-phony('test',    :action(&noop), :dependencies([ 'build' ]));
 $graph.add-phony('install', :action(&noop), :dependencies([ 'build' ]));
 
-$graph.add-phony('loop1', :dependencies(['loop2']));
-$graph.add-phony('loop2', :dependencies(['loop1']));
-
 my @sorted = $graph._sort-nodes('build');
 
 is-deeply(@sorted, [ $source1_filename, $source2_filename, 'build' ], 'topological sort is ok');
