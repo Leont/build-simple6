@@ -23,10 +23,8 @@ method add-phony(Filename:D $name, :dependencies(@dependency-names), *%args) {
 method !nodes-for(Str:D $name) {
 	my %seen;
 	sub node-sorter($node) {
-		return if %seen{$node}++;
-		node-sorter($_) for $node.dependencies;
+		node-sorter($_) for $node.dependencies.grep: { !%seen{$^node}++ };
 		take $node;
-		return
 	}
 	return gather { node-sorter(%!nodes{$name}) };
 }
