@@ -45,16 +45,25 @@ my class Node {
 	has Bool:D $.phony = False;
 	has Bool:D $.skip-mkdir = ?$!phony;
 	has Node:D @.dependencies;
-	has Sub $.action = sub {};
+	has Sub $.action;
+	my sub make-parent(IO::Path $file) {
+		my $parent = $file.parent.IO;
+		if not $parent.d {
+			make-parent($parent);
+			$parent.mkdir;
+		}
+	}
 
 	method run (%options) {
-		if !$!phony and $!name.IO.e {
-			my @files = @!dependencies.grep(!*.phony).map(*.name.IO);
-			my $age = $!name.IO.modified;
-			return unless @files.grep: { $^entry.modified > $age && !$^entry.d };
+		if !$!phony {
+			my $file = $!name.IO;
+			if $file.e {
+				my $files = @!dependencies.grep(!*.phony).map(*.name.IO);
+				my $age = $file.modified;
+				return unless $files.grep: { $^entry.modified > $age && !$^entry.d };
+			}
+			make-parent($file) unless $!skip-mkdir;
 		}
-		my $parent = $!name.IO.parent;
-		mkdir($parent) if not $!skip-mkdir and not $parent.IO.e;
-		$!action.(:$!name, :@!dependencies, |%options);
+		$!action.(:$!name, :@!dependencies, |%options) if $!action;
 	}
 }
