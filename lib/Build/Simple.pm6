@@ -21,15 +21,13 @@ method add-phony(Str $name, :dependencies(@dependency-names), *%args) {
 
 method !nodes-for(Str $name) {
 	my %seen;
-	sub node-sorter($node, %loop is copy) {
-		die "Looping" if %loop{$node} :exists;
+	sub node-sorter($node) {
 		return if %seen{$node}++;
-		%loop{$node} = 1;
-		node-sorter($_, %loop) for $node.dependencies;
+		node-sorter($_) for $node.dependencies;
 		take $node;
 		return
 	}
-	return gather { node-sorter(%!nodes{$name}, {}) };
+	return gather { node-sorter(%!nodes{$name}) };
 }
 
 method _sort-nodes(Str $name) {
