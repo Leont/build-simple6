@@ -4,82 +4,75 @@ use Test;
 use Build::Simple;
 use Shell::Command;
 
-my &next-is = -> { fail };
+sub next-is(Str :$name, *%) {
+	@*got.push($name);
+}
 
-sub dump(:$name, *%other) {
-	next-is($name);
+sub dump(:$name, *%) {
+	next-is(:$name);
 	my $dirname = $name.IO.dirname;
 	mkdir $dirname if not $dirname.IO.d;
 	spurt $name, $name;
 }
 
-sub poke(*%) {
-	next-is('poke');
-}
-
-sub noop(:$name, *%other) {
-	next-is($name);
-}
-
 my $graph = Build::Simple.new;
-my $dirname = '_testing';
-END { rm_rf($dirname) if $dirname.IO.e }
+my $dir = '_testing'.IO;
+END { rm_rf(~$dir) if $dir.e }
 
-my $source1_filename = '_testing/source1';
-$graph.add-file($source1_filename, :action( -> :$name, *%other { poke(), dump(:$name) }));
+my $source1-filename = $dir.child('source1');
+$graph.add-file($source1-filename, :action(&dump));
 
-my $source2_filename = '_testing/source2';
-$graph.add-file($source2_filename, :action(&dump), :dependencies([$source1_filename]));
+my $source2-filename = $dir.child('source2');
+$graph.add-file($source2-filename, :action(&dump), :dependencies[$source1-filename]);
 
-$graph.add-phony('build',   :action(&noop), :dependencies([ $source1_filename, $source2_filename ]));
-$graph.add-phony('test',    :action(&noop), :dependencies([ 'build' ]));
-$graph.add-phony('install', :action(&noop), :dependencies([ 'build' ]));
+$graph.add-phony('build',   :action(&next-is), :dependencies[ $source1-filename, $source2-filename ]);
+$graph.add-phony('test',    :action(&next-is), :dependencies[ 'build' ]);
+$graph.add-phony('install', :action(&next-is), :dependencies[ 'build' ]);
 
-my @sorted = $graph._sort-nodes('build');
+my @sorted = $graph._sort-nodes('build').list;
 
-is-deeply(@sorted, [ $source1_filename, $source2_filename, 'build' ], 'topological sort is ok');
+my @build = (~$source1-filename, ~$source2-filename, 'build');
+is-deeply(@sorted, @build, 'topological sort is ok');
 
-my @runs     = qw/build test install/;
 my %expected = (
 	build => [
-		[qw{poke _testing/source1 _testing/source2 build}],
-		[qw/build/],
+		@build,	
+		'build',
 
-		sub { rm_rf($dirname) },
-		[qw{poke _testing/source1 _testing/source2 build}],
-		[qw/build/],
+		sub { rm_rf(~$dir) },
+		@build,
+		'build',
 
-		sub { unlink $source2_filename or warn "Couldn't remove $source2_filename: $!" },
-		[qw{_testing/source2 build}],
-		[qw/build/],
+		sub { unlink $source2-filename or warn "Couldn't remove $source2-filename: $!" },
+		(~$source2-filename, 'build'),
+		'build',
 
-		sub { unlink $source1_filename; sleep(1) },
-		[qw{poke _testing/source1 _testing/source2 build}],
-		[qw/build/],
+		sub { unlink $source1-filename; sleep(1) },
+		@build,
+		'build',
 	],
 	test    => [
-		[qw{poke _testing/source1 _testing/source2 build test}],
-		[qw/build test/],
+		(|@build, 'test'),
+		<build test>,
 	],
 	install => [
-		[qw{poke _testing/source1 _testing/source2 build install}],
-		[qw/build install/],
+		(|@build, 'install'),
+		<build install>,
 	],
 );
 
-for (%expected.kv) -> $run, @expected {
-	rm_rf($dirname) if $dirname.IO.e;
-	mkdir $dirname;
+for <build test install> -> $run {
+	rm_rf(~$dir);
+	mkdir(~$dir);
 	my $count = 1;
-	for @expected -> $expected {
+	for %expected{$run}.list -> $expected {
 		if $expected ~~ Callable {
 			$expected();
 		}
 		else {
-			my @got;
-			temp &next-is = -> $name { push @got, $name };
+			my @*got;
 			$graph.run($run, :verbosity);
-			is-deeply(@got, $expected, "@got is {$expected.perl} in run $run-$count");
+			is-deeply(@*got.List, $expected.List, "Got {$expected.perl} in run $run-$count");
 			$count++;
 		}
 	}
