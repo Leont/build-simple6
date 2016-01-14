@@ -4,15 +4,15 @@ use Test;
 use Build::Simple;
 use Shell::Command;
 
-sub next-is(Str :$name, *%) {
-	@*got.push($name);
+sub next-is(IO::Path :$name, *%) {
+	@*got.push(~$name);
 }
 
-sub dump(:$name, *%) {
+sub dump(IO::Path :$name, *%) {
 	next-is(:$name);
-	my $dirname = $name.IO.dirname;
-	mkdir $dirname if not $dirname.IO.d;
-	spurt $name, $name;
+	my $dirname = $name.dirname.IO;
+	$dirname.mkdir if not $dirname.d;
+	spurt ~$name, ~$name;
 }
 
 my $graph = Build::Simple.new;
@@ -63,7 +63,7 @@ my %expected = (
 
 for <build test install> -> $run {
 	rm_rf(~$dir);
-	mkdir(~$dir);
+	$dir.mkdir();
 	my $count = 1;
 	for %expected{$run}.list -> $expected {
 		if $expected ~~ Callable {

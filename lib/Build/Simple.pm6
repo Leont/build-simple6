@@ -10,7 +10,7 @@ method add-file(Filename:D $name, :dependencies(@dependency-names), *%args) {
 	die "Already exists" if %!nodes{$name} :exists;
 	die "Missing dependencies" unless %!nodes{all(@dependency-names)} :exists;
 	my Node:D @dependencies = @dependency-names.map: { %!nodes{$^dep} };
-	%!nodes{$name} = Build::Simple::File.new(|%args, :name(~$name), :@dependencies);
+	%!nodes{$name} = Build::Simple::File.new(|%args, :name($name.IO), :@dependencies);
 	return;
 }
 
@@ -18,7 +18,7 @@ method add-phony(Filename:D $name, :dependencies(@dependency-names), *%args) {
 	die "Already exists" if %!nodes{$name} :exists;
 	die "Missing dependencies" unless %!nodes{all(@dependency-names)} :exists;
 	my Node:D @dependencies = @dependency-names.map: { %!nodes{$^dep} };
-	%!nodes{$name} = Build::Simple::Phony.new(|%args, :name(~$name), :@dependencies);
+	%!nodes{$name} = Build::Simple::Phony.new(|%args, :name($name.IO), :@dependencies);
 	return;
 }
 
@@ -32,7 +32,7 @@ method !nodes-for(Str:D $name) {
 }
 
 method _sort-nodes(Str:D $name) {
-	self!nodes-for($name).map(*.name);
+	self!nodes-for($name).map(*.name.Str);
 }
 
 method run(Filename:D $name, *%args) {
@@ -43,7 +43,7 @@ method run(Filename:D $name, *%args) {
 }
 
 my role Node {
-	has Str:D $.name is required;
+	has IO::Path:D $.name is required;
 	has Node:D @.dependencies;
 	has Sub $.action;
 }
@@ -65,10 +65,9 @@ class File does Node {
 	}
 
 	method run (%options) {
-		my $file = $!name.IO;
-		if $file.e {
-			my $files = @!dependencies.grep(File).map(*.name.IO);
-			my $age = $file.modified;
+		if $!name.e {
+			my $!names = @!dependencies.grep(File).map(*.name.IO);
+			my $age = $!name.modified;
 			return unless $files.grep: { $^entry.modified > $age && !$^entry.d };
 		}
 		make-parent($file) unless $!skip-mkdir;
