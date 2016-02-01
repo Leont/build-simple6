@@ -1,3 +1,5 @@
+use v6;
+
 unit class Build::Simple;
 use fatal;
 role Node { ... }
